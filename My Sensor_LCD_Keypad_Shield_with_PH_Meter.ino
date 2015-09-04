@@ -28,12 +28,12 @@
 
   Version :
   v0.1 5/3/2015    First Version
-
+  v0.2 3/9/2015     Vesrion by clemsail@free.fr with calibrating to EEPROM and data send with mySensor
 **************************************************************************************/
 
-/* PIN NRF Mysensor on a arduino Mega :
 
-modifier fichier libriaire myconfig.h
+/**************************************************************************************
+modif file : myconfig.h
 /**********************************
 *  NRF24L01 Driver Defaults
 ***********************************
@@ -42,35 +42,40 @@ modifier fichier libriaire myconfig.h
 #define RF24_PA_LEVEL 	   RF24_PA_MAX
 #define RF24_PA_LEVEL_GW   RF24_PA_LOW
 
-
-48 CE        orange
+**************************************************************************************
+*             PIN NRF Mysensor on a arduino Mega :                                   *
+**************************************************************************************
+48 CE       orange
 49 CSN/CS   jaune
 52 SCK      vert
 51 MOSI     bleu
 50 MISO     violet
-2 IRQ       gris
+2  IRQ      gris
+**************************************************************************************/
 
-*/
 
 #include <LiquidCrystal.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Wire.h>
 #include <EEPROM.h>
-// librairie pour My Sensor
+
+// My Sensor
 #include <SPI.h>
 #include <MySensor.h>
 
-// configuration my sensor
+// my sensor config
 MySensor gw;
 MyMessage msgPH(0, V_VAR1);
 MyMessage msgTempROOM(1, V_TEMP);
 MyMessage msgTempWATER(2, V_TEMP);
 double lastPhValue = 7;
 
+// lcd config
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);           // select the pins used on the LCD panel
 #define ONE_WIRE_BUS 3                         // DS18B20 connect to Pin 2 
 
+// temp config
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
@@ -86,6 +91,8 @@ int adc_key_prev  = -1;
 int CurrentMode = 0;                           // 0 = Normal Display , 1 = Debug1 , 2 = Debug2
 int CalSelect = 0;                             // 0 = PH4 Calibration Select , 1 = PH7 Calibration Select
 
+
+// value for temp and Ph
 const int NumReadings = 10;                    // number of reading for LM35
 int Index = 0;                                 // index
 int TempReadings[NumReadings];                 // array for store LM35 readings
@@ -99,20 +106,13 @@ int PhTotal = 0;                               // PH running total
 int PhAverage = 0;                             // PH average reading
 
 
-// the current address in the EEPROM (i.e. which byte
-// we're going to write to next)
+// the current address to stock calibrating value in the EEPROM
 int addrph4 = 40;
 int addrph7 = 70;
 
-double Ph7Buffer = 7.00;                          // For PH7 buffer solution's PH value , 7 or 6.86
+// value of calibrated Ph
+double Ph7Buffer = 7.00;                       // For PH7 buffer solution's PH value , 7 or 6.86
 double Ph4Buffer = 4.01;                       // For PH4 buffer solution's PH value , 4 or 4.01
-
-//double Ph7Reading = 528;                       // PH7 Buffer Solution Reading.
-//double Ph4Reading = 655;                       // PH4 Buffer Solution Reading.
-//double Ph7Reading = 628;                       // PH7 Buffer Solution Reading.
-//double Ph4Reading = 732;
-//double Ph7Reading = EEPROM.read(addrph4);                       // PH7 Buffer Solution Reading.
-//double Ph4Reading = EEPROM.read(addrph7);
 double Ph4Reading = EEreadFloat(addrph4);
 double Ph7Reading = EEreadFloat(addrph7);
 int calibrate = 0;
@@ -120,6 +120,7 @@ int calibrate = 0;
 double PhRatio = 0;                            // PH Step
 double PhValue = 0;                            // Ph Value in Human Reading Format after calculation
 
+// button lcd
 #define btnRIGHT  0
 #define btnUP     1
 #define btnDOWN   2
@@ -133,11 +134,7 @@ int read_LCD_buttons() {                       // read the buttons
   int k = (analogRead(0) - adc_key_in);      // gives the button a slight range to allow for a little contact resistance noise
   if (5 < abs(k)) return btnNONE;            // double checks the keypress. If the two readings are not equal +/-k value after debounce delay, it tries again.
   //lcd.print(adc_key_in);                   // read button value and print for calibrate
-
-  // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
-  // we add approx 50 to those values and check to see if we are close
-  // We make this the 1st option for speed reasons since it will be the most likely result
-
+  
   if (adc_key_in > 1000) return btnNONE;
   if (adc_key_in < 50)   return btnRIGHT;
   if (adc_key_in < 150)  return btnUP;
@@ -147,9 +144,12 @@ int read_LCD_buttons() {                       // read the buttons
   return btnNONE;                // when all others fail, return this.
 }
 
+// reading routin
 int reading() {
+  // read ph calibrated value in EEPROM
   double Ph4Reading = EEreadFloat(addrph4);
   double Ph7Reading = EEreadFloat(addrph7);
+  
   // Reading LM35 and PH Data
   // Samplin LM35 and PH Value
   TempTotal = TempTotal - TempReadings[Index];   // subtract the last reading:
@@ -167,27 +167,34 @@ int reading() {
   }
   TempValue = (double) TempAverage / 3.4  * (5 / 10.24); // LM35 connect to CA3140 for amplify 3 time
   PhValue = (Ph7Reading - PhAverage) / PhRatio + Ph7Buffer;    // Calculate PH
+
+/**************************************************************************************
+ to turn on/off a Ph down pump to have a 6.5 Ph
+ for the moment
+ i've not implemented to have two perstatic pump (Ph down/ Ph Up)
+ and can chose a cosigne of Ph value and store it to EEPROM
+ use a mosfet (TIP12*) connected with a 1k restistor to control 12V of peristatic pump
+ or for better security to arduino use a optocoupler
+**************************************************************************************/
   
   if (PhValue > 6.5) {
   digitalWrite(53, HIGH);  // turn pompe on      
   }
   if (PhValue < 6) {
   digitalWrite(53, LOW);  // turn pompe off
-    
   }
- 
+  
+/**************************************************************************************/
 
   if (PhValue > lastPhValue + 0.3) {
-    //Serial.println(PhValue);
     double PHsend = PhValue;
-    gw.send(msgPH.set(PHsend, 1)); // Send the inverse to gw as tripped should be when no water in soil
+    gw.send(msgPH.set(PHsend, 1)); // Send Ph value to mysensor
     lastPhValue = PhValue;
   }
   if (PhValue < lastPhValue - 0.3) {
-    //Serial.println(PhValue);
     double PHsend = PhValue;
-    gw.send(msgPH.set(PHsend, 1)); // Send the inverse to gw as tripped should be when no water in soil
-    lastPhValue = PhValue;
+    gw.send(msgPH.set(PHsend, 1)); // Send Ph value
+    lastPhValue = PhValue;         // Save new ph for next compare
     
   }
 
@@ -216,7 +223,7 @@ int reading() {
 
 void setup() {
   
-  // pompe PH down
+  // TIP122 with peristatic pump to PH down
     pinMode(53, OUTPUT);
   // start mysensor
   gw.begin();
@@ -225,11 +232,11 @@ void setup() {
   gw.sendSketchInfo("PH Temp Sensor", "1.0");
   delay(200);
   // Register all sensors to gw (they will be created as child devices)
-  gw.present(0, S_TEMP);
+  gw.present(0, S_TEMP);   // ph
   delay(200);
-  gw.present(1, S_TEMP);
+  gw.present(1, S_TEMP);   // room temp
   delay(200);
-  gw.present(2, S_TEMP);
+  gw.present(2, S_TEMP);   // water temp
   delay(200);
 
   lcd.begin(16, 2);                                                                // start LCD library
