@@ -27,7 +27,7 @@
   AA 01 04 BB , Enqyiry DS18B20 , LM35 and Ph
 
   Version :
-  v0.1 5/3/2015    First Version
+  v0.1 5/3/2015    First Version by https://github.com/kevinlohk/ArduinoPhMeter
   v0.2 3/9/2015     Vesrion by clemsail@free.fr with calibrating to EEPROM and data send with mySensor
 **************************************************************************************/
 
